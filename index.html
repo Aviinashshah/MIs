@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI-Enhanced MIS Query App</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #020617; /* slate-950 */
+        }
+        @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+        .animate-fade-in { animation: fade-in 0.5s ease-out forwards; }
+        
+        @keyframes gradient-animation {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+        .animated-gradient-background {
+            background: linear-gradient(-45deg, #020617, #0f172a, #134e4a, #0c4a6e);
+            background-size: 400% 400%;
+            animation: gradient-animation 25s ease infinite;
+        }
+
+        .particle {
+            position: absolute;
+            border-radius: 50%;
+            animation: drift linear infinite;
+            opacity: 0;
+            background-color: rgba(56, 189, 248, 0.1); /* light-blue-400 with low opacity */
+        }
+
+        @keyframes drift {
+            0% { transform: translateY(100vh) scale(0.5); opacity: 0; }
+            10% { opacity: 1; }
+            90% { opacity: 1; }
+            100% { transform: translateY(-10vh) scale(1.5); opacity: 0; }
+        }
+         @keyframes fade-in-right {
+            from { opacity: 0; transform: translateX(20px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+        .animate-fade-in-right {
+            animation: fade-in-right 0.5s ease-out forwards;
+        }
+    </style>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.17.0/xlsx.full.min.js"></script>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="module">
+        // --- Firebase Module Imports ---
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, addDoc, serverTimestamp, query, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        
+        // --- Global Placeholder for Firebase Services ---
+        window.firebaseServices = {};
+
+        // --- Firebase Initialization ---
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : { apiKey: "DEFAULT_KEY", authDomain: "DEFAULT_AUTH_DOMAIN", projectId: "DEFAULT_PROJECT_ID" };
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        
+        // --- Firebase Authentication ---
+        const authenticate = async () => {
+            try {
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } else {
+                    await signInAnonymously(auth);
+                }
+            } catch (error) {
+                console.error("Authentication Error:", error);
+            }
+        };
+        authenticate();
+
+        // --- Expose Firebase services to React via window object ---
+        window.firebaseServices = { auth, db, collection, addDoc, serverTimestamp, query, onSnapshot, onAuthStateChanged, appId };
+    </script>
+
+    <script type="text/babel">
+        // --- React and Firebase Hooks ---
+        const { useState, useEffect, useCallback, memo, useMemo } = React;
+        const { auth, db, collection, addDoc, serverTimestamp, query, onSnapshot, onAuthStateChanged, appId } = window.firebaseServices;
+
+        // --- Reusable UI Components ---
+
+        const EditableRevisedField = memo(({ id, initialValue, field, onUpdateData }) => {
+            const [localValue, setLocalValue] = useState(initialValue || "");
+            useEffect(() => { setLocalValue(initialValue || ""); }, [initialValue]);
+            const handleChange = (e) => setLocalValue(e.target.value);
+            const handleBlur = () => { if (localValue !== initialValue) onUpdateData(id, field, localValue); };
+            const handleKeyDown = (e) => { if (e.key === 'Enter') { e.preventDefault(); handleBlur(); e.target.blur(); }};
+            return <input type="text" value={localValue} onChange={handleChange} onBlur={handleBlur} onKeyDown={handleKeyDown} className="border border-slate-600 bg-slate-700/50 text-slate-200 px-2 py-1 rounded-md w-full focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition text-sm"/>;
+        });
+
+        const BackgroundVisualization = memo(() => {
+            const [particles, setParticles] = useState([]);
+            useEffect(() => {
+                const numParticles = 50;
+                const newParticles = Array.from({ length: numParticles }).map((_, i) => {
+                    const size = Math.random() * 3 + 1;
+                    return <div key={i} className="particle" style={{
+                        left: `${Math.random() * 100}vw`,
+                        top: `${Math.random() * 100 + 100}vh`,
+                        width: `${size}px`,
+                        height: `${size}px`,
+                        animationDuration: `${Math.random() * 20 + 15}s`,
+                        animationDelay: `${Math.random() * 20}s`,
+                    }}></div>;
+                });
+                setParticles(newParticles);
+            }, []);
+            return <div className="fixed top-0 left-0 w-full h-full z-[-1] animated-gradient-background">{particles}</div>;
+        });
+        
+        const LoadingOverlay = ({ text }) => {
+            if (!text) return null;
+            return (
+                <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm flex flex-col justify-center items-center z-[100] animate-fade-in">
+                    <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-t-4 border-cyan-500 mb-4"></div>
+                    <p className="text-white text-2xl font-semibold tracking-wider">{text}</p>
+                </div>
+            );
+        };
+
+        // --- Application Flow Screens ---
+
+        const WelcomeScreen = ({ onGetStarted }) => {
+            const [showTitle, setShowTitle] = useState(false);
+            const [showSubtitle, setShowSubtitle] = useState(false);
+            const [showButton, setShowButton] = useState(false);
+            
+            useEffect(() => {
+                const timer1 = setTimeout(() => setShowTitle(true), 500);
+                const timer2 = setTimeout(() => setShowSubtitle(true), 1500);
+                const timer3 = setTimeout(() => setShowButton(true), 2500);
+                return () => { clearTimeout(timer1); clearTimeout(timer2); clearTimeout(timer3); };
+            }, []);
+
+            return (
+                <div className="min-h-screen relative flex flex-col items-center justify-center p-4 overflow-hidden">
+                    <BackgroundVisualization/>
+                    <div className="text-center z-10">
+                        <h1 className={`text-5xl md:text-7xl font-extrabold text-white mb-4 transition-all duration-1000 transform ${showTitle ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-5'}`}>MIS Query Tool</h1>
+                        <p className={`text-xl md:text-2xl text-slate-300 mb-12 transition-all duration-1000 delay-500 transform ${showSubtitle ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-5'}`}>Your AI-Powered Data Analysis Assistant</p>
+                        <div className={`transition-opacity duration-1000 delay-[2000ms] ${showButton ? 'opacity-100' : 'opacity-0'}`}>
+                            <button onClick={onGetStarted} className="px-10 py-4 bg-cyan-600 text-white font-semibold rounded-lg shadow-lg hover:bg-cyan-700 transition duration-300 transform hover:scale-105">Get Started</button>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const SignInScreen = ({ onSignIn, name, setName, email, setEmail }) => {
+            const [modalMessage, setModalMessage] = useState('');
+            
+            const handleSignIn = (e) => {
+                e.preventDefault();
+                const trimmedEmail = email.trim();
+                if (!name.trim() || !trimmedEmail) { setModalMessage("Please enter your name and company email address."); return; }
+                if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) { setModalMessage("Please enter a valid email address format."); return; }
+                if (!trimmedEmail.toLowerCase().endsWith('@rebelfoods.com')) { setModalMessage("Access is restricted to company email addresses only."); return; }
+                onSignIn(name, trimmedEmail);
+            };
+
+            return (
+                <div className="min-h-screen flex items-center justify-center p-4 animate-fade-in">
+                     <BackgroundVisualization/>
+                     {modalMessage && (
+                        <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
+                            <div className="bg-slate-800 rounded-lg p-8 shadow-2xl border border-slate-700 text-center">
+                                <p className="text-white mb-6">{modalMessage}</p>
+                                <button onClick={() => setModalMessage('')} className="px-6 py-2 bg-rose-500 text-white font-semibold rounded-lg hover:bg-rose-600 transition">OK</button>
+                            </div>
+                        </div>
+                    )}
+                    <div className="w-full max-w-md bg-slate-800/50 backdrop-blur-xl p-8 rounded-2xl shadow-2xl text-center border border-slate-700">
+                        <h2 className="text-4xl font-bold text-white mb-2">Welcome Back</h2>
+                        <p className="text-slate-400 mb-8">Enter your details to access the dashboard.</p>
+                        <form onSubmit={handleSignIn} className="space-y-6">
+                            <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="Your Name" className="w-full p-3 bg-slate-700/50 border border-slate-600 text-white rounded-lg focus:ring-2 focus:ring-rose-500 transition shadow-sm text-center placeholder-slate-400" required />
+                            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Company Email" className="w-full p-3 bg-slate-700/50 border border-slate-600 text-white rounded-lg focus:ring-2 focus:ring-rose-500 transition shadow-sm text-center placeholder-slate-400" required />
+                            <button type="submit" className="w-full flex items-center justify-center gap-3 px-4 py-3 bg-rose-500 text-white font-semibold rounded-lg shadow-lg hover:bg-rose-600 transition duration-300 transform hover:scale-105">Enter Dashboard</button>
+                        </form>
+                    </div>
+                     <footer className="fixed bottom-4 right-4 text-xs text-slate-400 z-20">MIS Query Tool &copy; A</footer>
+                </div>
+            );
+        };
+
+        const ApiKeyModal = ({ show, onClose, onSave, apiKey: initialApiKey }) => {
+            if (!show) return null;
+            const [localKey, setLocalKey] = useState(initialApiKey);
+            
+            return (
+                <div className="fixed inset-0 bg-black bg-opacity-60 flex justify-center items-center z-50 animate-fade-in">
+                    <div className="bg-slate-800 rounded-lg p-8 shadow-2xl border border-slate-700 text-center w-full max-w-lg">
+                        <h2 className="text-2xl font-bold text-white mb-4">Google AI API Key</h2>
+                        <p className="text-slate-400 mb-6">Enter your API key to enable AI insights. Your key is saved locally in your browser.</p>
+                        <input type="password" value={localKey} onChange={(e) => setLocalKey(e.target.value)} placeholder="Enter your API key" className="w-full p-3 bg-slate-700/50 border border-slate-600 text-white rounded-lg focus:ring-2 focus:ring-rose-500 transition shadow-sm text-center placeholder-slate-400 mb-6"/>
+                        <div className="flex justify-center gap-4">
+                            <button onClick={() => onSave(localKey)} className="px-6 py-2 bg-rose-500 text-white font-semibold rounded-lg hover:bg-rose-600 transition">Save Key</button>
+                            <button onClick={onClose} className="px-6 py-2 bg-slate-600 text-white font-semibold rounded-lg hover:bg-slate-700 transition">Cancel</button>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+        
+        // --- Main App Component ---
+        function App() {
+            // State variables
+            const [data, setData] = useState([]);
+            const [headers, setHeaders] = useState([]);
+            const [isLoadingContent, setIsLoadingContent] = useState(false);
+            const [isFiltering, setIsFiltering] = useState(false);
+            const [statusMessage, setStatusMessage] = useState({ text: "", error: false, key: 0 });
+            const [appStep, setAppStep] = useState('welcome');
+            const [name, setName] = useState("");
+            const [email, setEmail] = useState("");
+            const [userId, setUserId] = useState(null);
+            const initialFilters = useMemo(() => ({ invoice: "", costMin: "", costMax: "", kitchen: "", expense: "" }), []);
+            const [filterInputs, setFilterInputs] = useState(initialFilters);
+            const [debouncedFilters, setDebouncedFilters] = useState(initialFilters);
+            const [uniqueKitchens, setUniqueKitchens] = useState([]);
+            const [uniqueExpenses, setUniqueExpenses] = useState([]);
+            const [insights, setInsights] = useState("");
+            const [loadingInsights, setLoadingInsights] = useState(false);
+            const [apiKey, setApiKey] = useState("");
+            const [showApiKeyModal, setShowApiKeyModal] = useState(false);
+
+            // Effects
+            useEffect(() => {
+                const storedApiKey = localStorage.getItem('geminiApiKey');
+                if (storedApiKey) setApiKey(storedApiKey);
+            }, []);
+
+            useEffect(() => {
+                if (!auth) return;
+                const unsubscribe = onAuthStateChanged(auth, user => setUserId(user ? user.uid : null));
+                return () => unsubscribe();
+            }, []);
+
+            useEffect(() => {
+                const handler = setTimeout(() => {
+                    setDebouncedFilters(filterInputs);
+                    setIsFiltering(false);
+                }, 500);
+                return () => clearTimeout(handler);
+            }, [filterInputs]);
+
+            // Callbacks
+            const showStatus = useCallback((text, isError = false) => {
+                const key = Date.now();
+                setStatusMessage({ text, error: isError, key });
+                setTimeout(() => setStatusMessage(prev => prev.key === key ? { text: "", error: false, key: 0 } : prev), 5000);
+            }, []);
+
+            const processData = useCallback((rawData, originalHeaders) => {
+                const kitchenField = originalHeaders.find(h => /kitchen/i.test(h)) || "";
+                const expenseField = originalHeaders.find(h => /Expence Name/i.test(h)) || "";
+                
+                const processedData = rawData.map((row, index) => ({ 
+                    ...row, 
+                    "Revised Expense Name": (row[expenseField] || "").toLowerCase().includes("transfer cost") ? "Other Bucket" : row[expenseField] || "", 
+                    "Revised Cost Center": row[kitchenField] || "Kitchen Center", 
+                    "User Remark": row["User Remark"] || "",
+                    _id: index 
+                }));
+
+                setUniqueKitchens(Array.from(new Set(processedData.map(r => r["Revised Cost Center"]).filter(Boolean))));
+                setUniqueExpenses(Array.from(new Set(processedData.map(r => r["Revised Expense Name"]).filter(Boolean))));
+                return processedData;
+            }, []);
+
+            const loadData = useCallback((parsedData, originalHeaders) => {
+                if (!parsedData?.length || !originalHeaders?.length) throw new Error("No data found.");
+                setData(processData(parsedData, originalHeaders));
+                setHeaders(originalHeaders);
+                setFilterInputs(initialFilters);
+                setInsights("");
+                showStatus("Data loaded successfully!");
+            }, [processData, showStatus, initialFilters]);
+            
+            const handleSignIn = useCallback((name, email) => {
+                setName(name);
+                setEmail(email);
+                setAppStep('dashboard');
+            }, []);
+            
+            const handleFilterChange = useCallback((e) => {
+                setIsFiltering(true);
+                const { name, value } = e.target;
+                setFilterInputs(prev => ({ ...prev, [name]: value }));
+                setInsights("");
+            }, []);
+
+            const fetchFromGoogleSheet = useCallback(async () => {
+                setIsLoadingContent(true);
+                try {
+                    const url = "https://docs.google.com/spreadsheets/d/1IgtMMdXw5CUEDuwoN5374jpkQ3Frb3axkEA15V2JmTc/export?format=csv&gid=131137182";
+                    const response = await fetch(url);
+                    if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}. Ensure sheet is public.`);
+                    const res = Papa.parse(await response.text(), { header: true, skipEmptyLines: true });
+                    loadData(res.data, res.meta.fields);
+                } catch (err) {
+                    showStatus(err.message, true);
+                } finally {
+                    setIsLoadingContent(false);
+                }
+            }, [loadData, showStatus]);
+
+            const handleUpdateData = useCallback((id, field, newValue) => {
+                setData(prevData => prevData.map(row => (row._id === id ? { ...row, [field]: newValue } : row)));
+                if (field === "User Remark" && newValue.trim()) {
+                    showStatus("Remark added. Export to Excel to save.");
+                }
+            }, [showStatus]);
+            
+            const handleSaveApiKey = useCallback((newKey) => {
+                if(newKey) {
+                    localStorage.setItem('geminiApiKey', newKey);
+                    setApiKey(newKey);
+                    setShowApiKeyModal(false);
+                    showStatus("API Key saved successfully!");
+                    generateInsights(newKey); 
+                } else {
+                    showStatus("API Key cannot be empty.", true);
+                }
+            }, [showStatus, generateInsights]);
+
+            // Memoized Calculations
+            const filteredData = useMemo(() => {
+                if (!data.length) return [];
+                const costField = headers.find(h => /Debit/i.test(h)) || "";
+                const invoiceField = headers.find(h => /Remarks/i.test(h)) || "";
+                return data.filter(row => {
+                    const cost = parseFloat((row[costField] || "0").toString().replace(/[^0-9.-]+/g, ""));
+                    return (debouncedFilters.invoice === "" || (row[invoiceField] || "").toLowerCase().includes(debouncedFilters.invoice.toLowerCase())) &&
+                           (debouncedFilters.costMin === "" || cost >= parseFloat(debouncedFilters.costMin)) && 
+                           (debouncedFilters.costMax === "" || cost <= parseFloat(debouncedFilters.costMax)) &&
+                           (debouncedFilters.kitchen === "" || (row["Revised Cost Center"] || "").toLowerCase().includes(debouncedFilters.kitchen.toLowerCase())) &&
+                           (debouncedFilters.expense === "" || (row["Revised Expense Name"] || "").toLowerCase().includes(debouncedFilters.expense.toLowerCase()));
+                });
+            }, [data, debouncedFilters, headers]);
+            
+            const summary = useMemo(() => {
+                if (!filteredData.length) return { totalCost: 0, bookedCount: 0 };
+                const costHeader = headers.find(h => /Debit/i.test(h)) || "";
+                const transactionHeader = headers.find(h => /Transaction Number/i.test(h)) || "";
+                return {
+                    totalCost: filteredData.reduce((sum, row) => sum + (parseFloat((row[costHeader] || "0").toString().replace(/[^0-9.-]+/g, "")) || 0), 0),
+                    bookedCount: filteredData.filter(row => (row[transactionHeader] || "").trim() !== "").length,
+                };
+            }, [filteredData, headers]);
+
+            const loadingText = useMemo(() => {
+                if (isLoadingContent) return "Loading Data From Sheet...";
+                if (loadingInsights) return "Generating AI Insights...";
+                return "";
+            }, [isLoadingContent, loadingInsights]);
+
+            // Core Functions
+            const generateInsights = useCallback(async (currentApiKey = apiKey) => {
+                if (!currentApiKey) { setShowApiKeyModal(true); return; }
+                if (!filteredData.length) { showStatus("Filter data to generate insights.", true); return; }
+                
+                setLoadingInsights(true);
+                setInsights("");
+                try {
+                    let dataSummary = `Summary:\nTotal Cost: ₹${summary.totalCost.toFixed(2)}\nBooked Entries: ${summary.bookedCount}\n\n`;
+                    const createTop5Summary = (field, label) => {
+                        const agg = filteredData.reduce((acc, row) => {
+                            const cat = row[field] || "Uncategorized";
+                            const cost = parseFloat((row[headers.find(h => /Debit/i.test(h)) || ""] || "0").toString().replace(/[^0-9.-]+/g, ""));
+                            acc[cat] = (acc[cat] || 0) + cost;
+                            return acc;
+                        }, {});
+                        const sorted = Object.entries(agg).sort(([, a], [, b]) => b - a).slice(0, 5);
+                        if (sorted.length > 0) return `Top 5 ${label}:\n` + sorted.map(([item, cost]) => `- ${item}: ₹${cost.toFixed(2)}`).join("\n") + "\n\n";
+                        return "";
+                    };
+                    dataSummary += createTop5Summary("Revised Expense Name", "Expense Categories");
+                    dataSummary += createTop5Summary("Revised Cost Center", "Cost Centers");
+
+                    const prompt = `Analyze the following financial data summary. Provide key insights, trends, or anomalies. Focus on cost centers and expense categories. Present in a clear, concise, bulleted list.\n\n${dataSummary}`;
+                    const payload = { contents: [{ role: "user", parts: [{ text: prompt }] }] };
+                    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${currentApiKey}`;
+                    
+                    const response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+                    const result = await response.json();
+
+                    if (response.status === 400) { throw new Error("Invalid API Key provided."); }
+                    if (!response.ok) { throw new Error(`API Error: ${result?.error?.message || "Unknown error"}`); }
+                    if (result.candidates?.[0]?.content?.parts?.[0]?.text) {
+                        setInsights(result.candidates[0].content.parts[0].text);
+                    } else { throw new Error("No valid response from AI model."); }
+                } catch (error) {
+                    setInsights(`Error: ${error.message}`);
+                    showStatus(`Error generating insights: ${error.message}`, true);
+                    if (error.message.includes("API Key")) { setShowApiKeyModal(true); }
+                } finally {
+                    setLoadingInsights(false);
+                }
+            }, [apiKey, filteredData, headers, summary, showStatus]);
+            
+            const exportToExcel = () => {
+                const dataToExport = filteredData.map(({ _id, ...rest }) => rest);
+                const ws = XLSX.utils.json_to_sheet(dataToExport);
+                const wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, ws, "Filtered Data");
+                XLSX.writeFile(wb, "MIS_Query_Export.xlsx");
+            };
+
+            // Render logic
+            if (appStep === 'welcome') return <WelcomeScreen onGetStarted={() => setAppStep('signin')} />;
+            if (appStep === 'signin') return <SignInScreen onSignIn={handleSignIn} name={name} setName={setName} email={email} setEmail={setEmail} />;
+
+            return (
+                <>
+                    <BackgroundVisualization />
+                    <ApiKeyModal show={showApiKeyModal} onClose={() => setShowApiKeyModal(false)} onSave={handleSaveApiKey} apiKey={apiKey} />
+                    <LoadingOverlay text={loadingText} />
+
+                    <div className="relative z-10 p-2 sm:p-4 max-w-screen-2xl mx-auto space-y-6 my-6">
+                        {statusMessage.text && <div key={statusMessage.key} className={`fixed top-5 right-5 p-4 rounded-xl shadow-lg flex items-center gap-3 z-50 animate-fade-in-right ${statusMessage.error ? 'bg-red-500/90' : 'bg-green-500/90'} text-white`}><p>{statusMessage.text}</p></div>}
+                        
+                        <header className="flex justify-between items-center px-2">
+                            <h1 className="text-3xl sm:text-4xl font-extrabold text-white">AI-Powered Data Query</h1>
+                            <div className="flex items-center gap-4">
+                                <span className="text-slate-300 text-sm hidden md:block">Welcome, {name}</span>
+                                <button onClick={() => setShowApiKeyModal(true)} title="Settings" className="p-2 rounded-full hover:bg-slate-700 transition">
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                                </button>
+                            </div>
+                        </header>
+                        
+                        <div className="bg-slate-800/50 backdrop-blur-xl rounded-2xl shadow-lg p-4 sm:p-6 border border-slate-700">
+                             <div className="flex flex-col sm:flex-row items-center gap-4 mb-6">
+                                <button onClick={fetchFromGoogleSheet} disabled={isLoadingContent || loadingInsights} className="w-full sm:w-auto flex-grow bg-teal-600 hover:bg-teal-700 text-white font-semibold py-3 px-4 rounded-xl shadow-md transition transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed">Load Google Sheet</button>
+                                <button onClick={() => generateInsights()} disabled={loadingInsights || isLoadingContent || filteredData.length === 0} className="w-full sm:w-auto flex-grow bg-rose-500 hover:bg-rose-600 text-white font-semibold py-3 px-4 rounded-xl shadow-md transition transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed">✨ Generate Insights</button>
+                             </div>
+                             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+                                <input type="text" name="invoice" placeholder="Filter by Remarks" value={filterInputs.invoice} onChange={handleFilterChange} className="p-3 bg-slate-700/50 border border-slate-600 text-white rounded-lg focus:ring-2 focus:ring-cyan-500 transition text-sm placeholder-slate-400" />
+                                <input type="number" name="costMin" placeholder="Min Debit (₹)" value={filterInputs.costMin} onChange={handleFilterChange} className="p-3 bg-slate-700/50 border border-slate-600 text-white rounded-lg focus:ring-2 focus:ring-cyan-500 transition text-sm placeholder-slate-400" />
+                                <input type="number" name="costMax" placeholder="Max Debit (₹)" value={filterInputs.costMax} onChange={handleFilterChange} className="p-3 bg-slate-700/50 border border-slate-600 text-white rounded-lg focus:ring-2 focus:ring-cyan-500 transition text-sm placeholder-slate-400" />
+                                <input list="kitchen-list" name="kitchen" placeholder="Filter by Kitchen" value={filterInputs.kitchen} onChange={handleFilterChange} className="p-3 w-full bg-slate-700/50 border border-slate-600 text-white rounded-lg focus:ring-2 focus:ring-cyan-500 transition text-sm placeholder-slate-400" /><datalist id="kitchen-list">{uniqueKitchens.map(k => <option key={k} value={k} />)}</datalist>
+                                <input list="expense-list" name="expense" placeholder="Filter by Expense" value={filterInputs.expense} onChange={handleFilterChange} className="p-3 w-full bg-slate-700/50 border border-slate-600 text-white rounded-lg focus:ring-2 focus:ring-cyan-500 transition text-sm placeholder-slate-400" /><datalist id="expense-list">{uniqueExpenses.map(e => <option key={e} value={e} />)}</datalist>
+                             </div>
+                        </div>
+                        
+                        {data.length > 0 && (
+                            <div className="space-y-6">
+                                <div className="bg-slate-800 text-white p-6 rounded-2xl shadow-xl grid grid-cols-1 sm:grid-cols-3 gap-4 text-center">
+                                    <div><p className="text-sm text-slate-300">Total Filtered Cost</p><p className="text-2xl font-bold">₹{summary.totalCost.toFixed(2)}</p></div>
+                                    <div><p className="text-sm text-slate-300">Booked Entries</p><p className="text-2xl font-bold">{summary.bookedCount}</p></div>
+                                    <div><p className="text-sm text-slate-300">Filtered Rows</p><p className="text-2xl font-bold">{filteredData.length}</p></div>
+                                </div>
+
+                                {insights && <div className="bg-rose-500/10 backdrop-blur-xl rounded-2xl shadow-lg p-6 border border-rose-500/20"><h2 className="text-2xl font-bold text-rose-100 mb-3">AI Insights</h2><div className="bg-slate-800/50 p-4 rounded-md border border-slate-700 whitespace-pre-wrap text-slate-200 leading-relaxed shadow-inner">{insights}</div></div>}
+                                
+                                <div className="bg-slate-800/50 backdrop-blur-xl rounded-2xl shadow-lg overflow-hidden border border-slate-700">
+                                    <div className="p-4 sm:p-6 flex flex-col sm:flex-row justify-between items-center bg-slate-700/50 border-b border-slate-700 gap-3">
+                                        <h2 className="text-2xl font-bold text-white">Filtered Data</h2>
+                                        <button onClick={exportToExcel} disabled={filteredData.length === 0} className="px-5 py-2 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-lg shadow-md transition transform hover:scale-105 disabled:opacity-50">Export to Excel</button>
+                                    </div>
+                                    <div className="overflow-x-auto max-h-[70vh] relative">
+                                        {isFiltering && (
+                                            <div className="absolute inset-0 bg-slate-800/60 backdrop-blur-sm flex justify-center items-center z-20 animate-fade-in">
+                                                <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-white"></div>
+                                            </div>
+                                        )}
+                                        {filteredData.length > 0 ? (
+                                            <table className="min-w-full divide-y divide-slate-700">
+                                                <thead className="bg-slate-700/50 sticky top-0 z-10">
+                                                    <tr>
+                                                        {headers.map(h => <th key={h} scope="col" className="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">{h}</th>)}
+                                                        <th scope="col" className="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Revised Expense Name</th>
+                                                        <th scope="col" className="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Revised Cost Center</th>
+                                                        <th scope="col" className="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">User Remark</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-slate-700">
+                                                    {filteredData.map(row => (
+                                                        <tr key={row._id} className="hover:bg-slate-700/30 transition-colors">
+                                                            {headers.map(h => <td key={`${row._id}-${h}`} className="px-4 py-2 whitespace-nowrap text-sm text-slate-300">{row[h]}</td>)}
+                                                            <td className="px-4 py-2 whitespace-nowrap text-sm"><EditableRevisedField id={row._id} initialValue={row["Revised Expense Name"]} field="Revised Expense Name" onUpdateData={handleUpdateData} /></td>
+                                                            <td className="px-4 py-2 whitespace-nowrap text-sm"><EditableRevisedField id={row._id} initialValue={row["Revised Cost Center"]} field="Revised Cost Center" onUpdateData={handleUpdateData} /></td>
+                                                            <td className="px-4 py-2 whitespace-nowrap text-sm"><EditableRevisedField id={row._id} initialValue={row["User Remark"]} field="User Remark" onUpdateData={handleUpdateData} /></td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        ) : <p className="p-6 text-center text-slate-400">{isFiltering ? 'Filtering...' : 'No data matches the current filters.'}</p>}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                    <footer className="fixed bottom-4 right-4 text-xs text-slate-500 z-20">MIS Query Tool &copy; A</footer>
+                </>
+            );
+        }
+
+        ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+    </script>
+</body>
+</html>
