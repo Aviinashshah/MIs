@@ -95,7 +95,7 @@
     <div id="root"></div>
 
     <script type="text/babel">
-        const { useState, useEffect, useMemo } = React;
+        const { useState, useEffect, useMemo, useRef } = React;
 
         // --- Icons ---
         const UploadIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-brand-purple mb-4"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>;
@@ -105,6 +105,13 @@
         const GridIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></svg>;
         const ListIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="8" x2="21" y1="6" y2="6"/><line x1="8" x2="21" y1="12" y2="12"/><line x1="8" x2="21" y1="18" y2="18"/><line x1="3" x2="3.01" y1="6" y2="6"/><line x1="3" x2="3.01" y1="12" y2="12"/><line x1="3" x2="3.01" y1="18" y2="18"/></svg>;
         const RupeeIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 3h12"/><path d="M6 8h12"/><path d="m6 13 8.5 10"/><path d="M6 13h3"/><path d="M9 13c6.667 0 6.667-10 0-10"/></svg>;
+        const PriceTagIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11.5 2H2v9.5L14.5 22 22 14.5 11.5 2z"/><path d="M6 6h.01"/></svg>;
+        const MaximizeIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 3h6v6"/><path d="M9 21H3v-6"/><path d="M21 3l-7 7"/><path d="M3 21l7-7"/></svg>;
+        const MinimizeIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 14h6v6"/><path d="M20 10h-6V4"/><path d="M14 10l7-7"/><path d="M3 21l7-7"/></svg>;
+        const CopyIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>;
+        const CheckIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-emerald-500"><polyline points="20 6 9 17 4 12"/></svg>;
+        const CloseIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>;
+        const AlertIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-red-500"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>;
 
         // --- Helper Functions ---
         const getMonthKey = (val) => {
@@ -206,20 +213,41 @@
             const [rawData, setRawData] = useState([]);
             const [headers, setHeaders] = useState([]);
             const [isProcessing, setIsProcessing] = useState(false);
-            const [uploadProgress, setUploadProgress] = useState(0); // Progress Bar State
+            const [uploadProgress, setUploadProgress] = useState(0); 
             const [currentFile, setCurrentFile] = useState('');
             const [importStats, setImportStats] = useState([]);
             
             const [columnMapping, setColumnMapping] = useState({
-                city: '', brand: '', product: '', sales: '', quantity: '', date: ''
+                city: '', brand: '', product: '', sales: '', quantity: '', date: '', source: ''
             });
 
             const [selectedCity, setSelectedCity] = useState('All');
             const [selectedBrand, setSelectedBrand] = useState('All');
             const [selectedMonth, setSelectedMonth] = useState('All');
-            const [trendMetric, setTrendMetric] = useState('sales');
+            const [selectedSource, setSelectedSource] = useState('All'); 
+            
+            const [trendMetric, setTrendMetric] = useState('sales'); 
             const [viewMode, setViewMode] = useState('monthly');
             const [processedCount, setProcessedCount] = useState(0);
+            const [isTableExpanded, setIsTableExpanded] = useState(false);
+            const [isDeepDiveExpanded, setIsDeepDiveExpanded] = useState(false); // New state for Deep Dive zoom
+            const [isCopied, setIsCopied] = useState(false);
+            const [activeProduct, setActiveProduct] = useState(null);
+            
+            // Ref for scrolling to detail section
+            const detailSectionRef = useRef(null);
+
+            // --- Scroll Effect ---
+            useEffect(() => {
+                if (activeProduct) {
+                    setIsDeepDiveExpanded(false); // Reset zoom when opening new product
+                    if (detailSectionRef.current) {
+                        setTimeout(() => {
+                            detailSectionRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                        }, 100);
+                    }
+                }
+            }, [activeProduct]);
 
             // --- File Handling ---
             const handleFileUpload = async (e) => {
@@ -230,8 +258,6 @@
                 setUploadProgress(0);
                 setRawFiles(files);
 
-                // PERFORMANCE FIX: Don't spread large arrays in loops. 
-                // Collect separate sheet arrays then flatten once.
                 const collectedSheets = []; 
                 let detectedHeaders = new Set();
                 let stats = [];
@@ -239,19 +265,15 @@
                 for (let i = 0; i < files.length; i++) {
                     const file = files[i];
                     setCurrentFile(file.name);
-                    setUploadProgress(Math.round(((i) / files.length) * 100)); // Update progress start for file
+                    setUploadProgress(Math.round(((i) / files.length) * 100));
 
                     try {
                         const { sheetData, sheetStats } = await readFile(file);
-                        
-                        // Collect headers from first few rows to avoid iterating everything if huge
-                        // But for accurate mapping we usually scan. To optimize, scan first 100 rows per sheet.
                         if (sheetData.length > 0) {
                             const sample = sheetData.slice(0, 100); 
                             sample.forEach(row => Object.keys(row).forEach(k => detectedHeaders.add(k.trim())));
                             collectedSheets.push(sheetData);
                         }
-                        
                         stats.push(...sheetStats.map(s => ({ ...s, fileName: file.name })));
                     } catch (err) { console.error(err); alert(`Error reading ${file.name}`); }
                     
@@ -264,15 +286,11 @@
                     return; 
                 }
 
-                // Flatten efficiently
                 const flatData = collectedSheets.flat();
-                
-                // Final Header Scan (if sampling missed keys in deep rows, we might miss them, but usually headers are top)
                 setRawData(flatData);
                 setHeaders(Array.from(detectedHeaders));
                 setImportStats(stats);
                 
-                // Small delay to show 100%
                 setTimeout(() => {
                     setIsProcessing(false);
                     setStep(2);
@@ -282,21 +300,14 @@
             const readFile = (file) => {
                 return new Promise((resolve, reject) => {
                     const reader = new FileReader();
-                    
                     reader.onload = (e) => {
                         try {
-                            // OPTIMIZATION: Parse XLSX more efficiently if possible
-                            // We use 'dense: true' which can save memory
                             const workbook = XLSX.read(e.target.result, { type: 'array', cellDates: true, dense: true });
-                            
                             let sheetStats = [];
-                            const sheetsData = []; // Store arrays of rows per sheet
-
+                            const sheetsData = [];
                             workbook.SheetNames.forEach(sheetName => {
                                 const json = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { cellDates: true, defval: "" });
                                 sheetStats.push({ name: sheetName, rowCount: json.length });
-                                
-                                // Normalize keys immediately
                                 if (json.length > 0) {
                                     const cleanedJson = json.map(row => {
                                         const newRow = {};
@@ -306,14 +317,10 @@
                                     sheetsData.push(cleanedJson);
                                 }
                             });
-                            
-                            // Flatten once at the end to avoid call stack issues and concat performance hits
                             const sheetData = sheetsData.flat();
-                            
                             resolve({ sheetData, sheetStats });
                         } catch (error) { reject(error); }
                     };
-                    
                     reader.onerror = reject;
                     reader.readAsArrayBuffer(file);
                 });
@@ -331,6 +338,8 @@
                     if (!map.sales) map.sales = find(['sales', 'revenue', 'amount', 'total', 'gsv', 'price', 'inr']);
                     if (!map.quantity) map.quantity = find(['qty', 'quantity', 'count', 'vol']);
                     if (!map.date) map.date = find(['date', 'time', 'period', 'month']);
+                    // Source Mapping
+                    if (!map.source) map.source = find(['source', 'channel', 'platform', 'online', 'store']);
                     setColumnMapping(map);
                 }
             }, [step]);
@@ -338,10 +347,11 @@
             // --- Analysis Logic ---
             const analysis = useMemo(() => {
                 if (step !== 3) return null;
-                const { city, brand, product, sales, quantity, date } = columnMapping;
+                const { city, brand, product, sales, quantity, date, source } = columnMapping;
                 
                 const cities = new Set();
                 const brands = new Set();
+                const sources = new Set();
                 const monthKeys = new Set();
                 const quarterKeys = new Set();
                 
@@ -349,7 +359,6 @@
                 let totalRev = 0;
                 let totalVol = 0;
                 
-                // Aggregations for charts
                 const brandSales = {};
                 const citySales = {};
 
@@ -360,25 +369,26 @@
 
                     const mKey = date && row[date] ? getMonthKey(row[date]) : 'Total';
                     const qKey = date && row[date] ? getQuarterKey(row[date]) : 'Total';
+                    const rSource = source && row[source] ? row[source] : 'Unknown';
                     
                     if (selectedCity !== 'All' && rCity !== selectedCity) return false;
                     if (selectedBrand !== 'All' && rBrand !== selectedBrand) return false;
                     if (selectedMonth !== 'All' && mKey !== selectedMonth) return false;
+                    if (selectedSource !== 'All' && rSource !== selectedSource) return false;
 
                     count++;
                     cities.add(rCity);
                     brands.add(rBrand);
+                    if (rSource !== 'Unknown') sources.add(rSource);
                     if (mKey !== 'Total') monthKeys.add(mKey);
                     if (qKey !== 'Total') quarterKeys.add(qKey);
 
-                    // Parse Values
                     let vSales = parseFloat(String(row[sales]).replace(/[^0-9.-]+/g,"")) || 0;
                     let vQty = parseFloat(String(row[quantity]).replace(/[^0-9.-]+/g,"")) || 0;
 
                     totalRev += vSales;
                     totalVol += vQty;
 
-                    // Chart Aggregations
                     brandSales[rBrand] = (brandSales[rBrand] || 0) + vSales;
                     citySales[rCity] = (citySales[rCity] || 0) + vSales;
 
@@ -387,19 +397,24 @@
 
                 setProcessedCount(count);
 
-                // Top Products Logic
                 const productMap = {};
                 filtered.forEach(row => {
                     const pName = row[product];
                     const pBrand = row[brand];
-                    // Removed city from aggregation scope
+                    
                     let vSales = parseFloat(String(row[sales]).replace(/[^0-9.-]+/g,"")) || 0;
                     let vQty = parseFloat(String(row[quantity]).replace(/[^0-9.-]+/g,"")) || 0;
                     
+                    // Simple Unit Price for Row
+                    let vPrice = 0;
+                    let isValidPrice = false;
+                    if (vQty > 0) {
+                        vPrice = vSales / vQty;
+                        isValidPrice = true;
+                    }
+                    
                     const mKey = date && row[date] ? getMonthKey(row[date]) : 'Total';
                     const qKey = date && row[date] ? getQuarterKey(row[date]) : 'Total';
-                    
-                    // Aggregate by Product + Brand only (merging cities)
                     const key = `${pName}|${pBrand}`;
 
                     if (!productMap[key]) {
@@ -411,13 +426,25 @@
                     productMap[key].totalSales += vSales;
                     productMap[key].totalQty += vQty;
 
-                    if (!productMap[key].months[mKey]) productMap[key].months[mKey] = { sales: 0, qty: 0 };
+                    // Initialize Month Trackers
+                    if (!productMap[key].months[mKey]) productMap[key].months[mKey] = { sales: 0, qty: 0, priceSum: 0, priceCount: 0 };
                     productMap[key].months[mKey].sales += vSales;
                     productMap[key].months[mKey].qty += vQty;
+                    
+                    if (isValidPrice) {
+                        productMap[key].months[mKey].priceSum += vPrice;
+                        productMap[key].months[mKey].priceCount += 1;
+                    }
 
-                    if (!productMap[key].quarters[qKey]) productMap[key].quarters[qKey] = { sales: 0, qty: 0 };
+                    // Initialize Quarter Trackers
+                    if (!productMap[key].quarters[qKey]) productMap[key].quarters[qKey] = { sales: 0, qty: 0, priceSum: 0, priceCount: 0 };
                     productMap[key].quarters[qKey].sales += vSales;
                     productMap[key].quarters[qKey].qty += vQty;
+                    
+                    if (isValidPrice) {
+                        productMap[key].quarters[qKey].priceSum += vPrice;
+                        productMap[key].quarters[qKey].priceCount += 1;
+                    }
                 });
 
                 const topProducts = Object.values(productMap)
@@ -425,30 +452,104 @@
                     .sort((a, b) => b.totalSales - a.totalSales)
                     .slice(0, 20);
 
-                // Prepare Charts Data
-                const topBrands = Object.entries(brandSales)
-                    .sort((a, b) => b[1] - a[1])
-                    .slice(0, 5)
-                    .map(([k, v]) => ({ name: k, value: v }));
-                
-                const topCities = Object.entries(citySales)
-                    .sort((a, b) => b[1] - a[1])
-                    .slice(0, 5)
-                    .map(([k, v]) => ({ name: k, value: v }));
+                const topBrands = Object.entries(brandSales).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([k, v]) => ({ name: k, value: v }));
+                const topCities = Object.entries(citySales).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([k, v]) => ({ name: k, value: v }));
 
                 return {
                     uniqueCities: Array.from(cities).sort(),
                     uniqueBrands: Array.from(brands).sort(),
+                    uniqueSources: Array.from(sources).sort(),
                     uniqueMonthKeys: Array.from(monthKeys).sort(),
                     topProducts,
                     sortedMonthKeys: Array.from(monthKeys).sort(),
                     sortedQuarterKeys: Array.from(quarterKeys).sort(),
-                    totalRev,
-                    totalVol,
-                    topBrands,
-                    topCities
+                    totalRev, totalVol, topBrands, topCities,
+                    rowCount: count
                 };
-            }, [rawData, columnMapping, selectedCity, selectedBrand, selectedMonth, step]);
+            }, [rawData, columnMapping, selectedCity, selectedBrand, selectedMonth, selectedSource, step]);
+
+            // --- Product Specific Price Matrix Logic ---
+            const activeProductMatrix = useMemo(() => {
+                if (!activeProduct || !analysis) return null;
+                
+                const { city, brand, product, sales, quantity, date, source } = columnMapping;
+                const matrix = {}; // City -> Month -> Price
+                const allCities = new Set();
+                const allMonths = new Set(analysis.uniqueMonthKeys);
+
+                rawData.forEach(row => {
+                    if (row[product] !== activeProduct.name) return; // Exact match product
+                    
+                    // Apply filters EXCEPT City (so we see comparison)
+                    const rBrand = row[brand];
+                    const rSource = source && row[source] ? row[source] : 'Unknown';
+                    const mKey = date && row[date] ? getMonthKey(row[date]) : 'Total';
+
+                    if (selectedBrand !== 'All' && rBrand !== selectedBrand) return;
+                    if (selectedMonth !== 'All' && mKey !== selectedMonth) return;
+                    if (selectedSource !== 'All' && rSource !== selectedSource) return;
+
+                    const rCity = row[city];
+                    let vSales = parseFloat(String(row[sales]).replace(/[^0-9.-]+/g,"")) || 0;
+                    let vQty = parseFloat(String(row[quantity]).replace(/[^0-9.-]+/g,"")) || 0;
+
+                    if (!matrix[rCity]) matrix[rCity] = {};
+                    if (!matrix[rCity][mKey]) matrix[rCity][mKey] = { sales: 0, qty: 0 };
+
+                    matrix[rCity][mKey].sales += vSales;
+                    matrix[rCity][mKey].qty += vQty;
+                    allCities.add(rCity);
+                });
+
+                // Calculate Prices & Deviation
+                const processedMatrix = {
+                    cities: Array.from(allCities).sort(),
+                    months: analysis.sortedMonthKeys,
+                    data: {},
+                    monthStandards: {}
+                };
+
+                // Find Standard Price per Month (Mode)
+                analysis.sortedMonthKeys.forEach(mKey => {
+                    const priceCounts = {};
+                    Array.from(allCities).forEach(c => {
+                        const d = matrix[c]?.[mKey];
+                        if (d && d.qty > 0) {
+                            const p = Math.round(d.sales / d.qty);
+                            priceCounts[p] = (priceCounts[p] || 0) + 1;
+                        }
+                    });
+                    
+                    // Find Max Count
+                    let standard = 0;
+                    let maxCount = 0;
+                    Object.entries(priceCounts).forEach(([p, count]) => {
+                        if (count > maxCount) { maxCount = count; standard = parseFloat(p); }
+                    });
+                    processedMatrix.monthStandards[mKey] = standard;
+                });
+
+                // Final Data with Flags
+                Array.from(allCities).forEach(c => {
+                    processedMatrix.data[c] = {};
+                    analysis.sortedMonthKeys.forEach(mKey => {
+                        const d = matrix[c]?.[mKey];
+                        if (d && d.qty > 0) {
+                            const price = d.sales / d.qty;
+                            const standard = processedMatrix.monthStandards[mKey];
+                            // Flag if deviation > 2% (approx)
+                            const isException = standard > 0 && Math.abs(price - standard) > (standard * 0.02);
+                            processedMatrix.data[c][mKey] = { price, isException };
+                        } else {
+                            processedMatrix.data[c][mKey] = { price: 0, isException: false };
+                        }
+                    });
+                });
+
+                return processedMatrix;
+
+            }, [activeProduct, rawData, analysis, columnMapping, selectedBrand, selectedMonth, selectedSource]);
+
 
             const exportData = () => {
                 if (!analysis) return;
@@ -457,7 +558,6 @@
                         Rank: idx + 1,
                         Product: p.name,
                         Brand: p.brand,
-                        // City removed from export
                         AOV: p.aov,
                         'Total Sales': p.totalSales,
                         'Total Qty': p.totalQty
@@ -467,10 +567,11 @@
                     const formatter = viewMode === 'monthly' ? formatMonthLabel : formatQuarterLabel;
                     
                     keys.forEach(k => {
-                        const d = src[k] || { sales: 0, qty: 0 };
+                        const d = src[k] || { sales: 0, qty: 0, priceSum: 0, priceCount: 0 };
                         const lbl = formatter(k);
                         row[`${lbl} Sales`] = d.sales;
-                        row[`${lbl} AOV`] = d.qty > 0 ? d.sales / d.qty : 0;
+                        row[`${lbl} AOV`] = d.qty > 0 ? d.sales / d.qty : 0; 
+                        row[`${lbl} Avg Price`] = d.priceCount > 0 ? d.priceSum / d.priceCount : 0; 
                     });
                     return row;
                 });
@@ -478,6 +579,26 @@
                 const wb = XLSX.utils.book_new();
                 XLSX.utils.book_append_sheet(wb, ws, "Analysis");
                 XLSX.writeFile(wb, `Analyzer_Export_${viewMode}.xlsx`);
+            };
+
+            const handleCopyTable = () => {
+                const table = document.getElementById('breakdown-table');
+                if (!table) return;
+
+                const range = document.createRange();
+                range.selectNode(table);
+                window.getSelection().removeAllRanges();
+                window.getSelection().addRange(range);
+                
+                try {
+                    document.execCommand('copy');
+                    setIsCopied(true);
+                    setTimeout(() => setIsCopied(false), 2000);
+                } catch (err) {
+                    console.error('Failed to copy', err);
+                }
+                
+                window.getSelection().removeAllRanges();
             };
 
             // --- Rendering ---
@@ -535,7 +656,8 @@
                                 {Object.keys(columnMapping).map(key => (
                                     <div key={key}>
                                         <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">
-                                            {key === 'sales' ? 'Revenue / Sales (INR)' : key} <span className="text-brand-pink">*</span>
+                                            {key === 'sales' ? 'Revenue / Sales (INR)' : key === 'source' ? 'Source / Channel' : key} 
+                                            {['sales', 'quantity', 'product'].includes(key) && <span className="text-brand-pink">*</span>}
                                         </label>
                                         <select 
                                             value={columnMapping[key]}
@@ -564,7 +686,7 @@
                             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Powered By The Huger Gains</span>
                             <button 
                                 onClick={() => {
-                                    if(Object.values(columnMapping).some(v => !v)) return alert("Map all fields!");
+                                    if(!columnMapping.sales || !columnMapping.quantity || !columnMapping.product) return alert("Please map Sales, Quantity and Product fields!");
                                     setStep(3);
                                 }}
                                 className="bg-slate-900 text-white hover:bg-slate-800 px-8 py-3 rounded-xl font-bold text-sm transition-transform active:scale-95 flex items-center shadow-lg"
@@ -578,13 +700,13 @@
 
             // Step 3: Dashboard
             if (!analysis) return null;
-            const { topProducts, totalRev, totalVol, topBrands, topCities } = analysis;
+            const { topProducts, totalRev, totalVol, topBrands, topCities, rowCount } = analysis;
             const overallAOV = totalVol > 0 ? totalRev / totalVol : 0;
             const maxBrandVal = Math.max(...topBrands.map(b => b.value), 0);
             const maxCityVal = Math.max(...topCities.map(c => c.value), 0);
 
             return (
-                <div className="min-h-screen pb-12 animate-fade-in">
+                <div className="min-h-screen pb-12 animate-fade-in relative">
                     {/* Header */}
                     <div className="sticky top-0 z-50 glass-panel border-b border-white/20">
                         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
@@ -657,6 +779,11 @@
                                             <option value="All">All Brands</option>
                                             {analysis.uniqueBrands.map(b => <option key={b} value={b}>{b}</option>)}
                                         </select>
+                                        {/* New Source Filter */}
+                                        <select value={selectedSource} onChange={e => setSelectedSource(e.target.value)} className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-700 outline-none focus:border-brand-purple shadow-sm">
+                                            <option value="All">All Sources</option>
+                                            {analysis.uniqueSources.map(s => <option key={s} value={s}>{s}</option>)}
+                                        </select>
                                     </div>
                                 </div>
                                 <div className="mt-6 bg-slate-50 rounded-xl p-4 border border-slate-200">
@@ -664,21 +791,38 @@
                                     <div className="flex bg-white p-1 rounded-lg border border-slate-200">
                                         <button onClick={() => setTrendMetric('sales')} className={`flex-1 py-1.5 text-xs font-bold rounded-md transition-colors ${trendMetric === 'sales' ? 'bg-indigo-50 text-indigo-700 shadow-sm' : 'text-slate-500'}`}>Sales</button>
                                         <button onClick={() => setTrendMetric('aov')} className={`flex-1 py-1.5 text-xs font-bold rounded-md transition-colors ${trendMetric === 'aov' ? 'bg-orange-50 text-orange-700 shadow-sm' : 'text-slate-500'}`}>AOV</button>
+                                        <button onClick={() => setTrendMetric('price')} className={`flex-1 py-1.5 text-xs font-bold rounded-md transition-colors ${trendMetric === 'price' ? 'bg-emerald-50 text-emerald-700 shadow-sm' : 'text-slate-500'}`}>Price</button>
                                     </div>
                                 </div>
                             </div>
                         </div>
 
                         {/* Main Table */}
-                        <div className="glass-panel rounded-3xl overflow-hidden border border-slate-200 shadow-lg">
+                        <div className={`transition-all duration-300 ${isTableExpanded ? 'fixed inset-0 z-[100] bg-white flex flex-col p-6' : 'glass-panel rounded-3xl overflow-hidden border border-slate-200 shadow-lg'}`}>
                             <div className="px-6 py-4 border-b border-slate-200 flex justify-between items-center bg-white/40">
                                 <h2 className="font-bold text-slate-800 flex items-center gap-2">
                                     <ListIcon /> Top 20 Breakdown
                                 </h2>
+                                <div className="flex items-center gap-2">
+                                    <button 
+                                        onClick={handleCopyTable}
+                                        className="p-2 text-slate-500 hover:text-brand-purple hover:bg-slate-100 rounded-lg transition-colors"
+                                        title="Copy Table to Clipboard"
+                                    >
+                                        {isCopied ? <CheckIcon /> : <CopyIcon />}
+                                    </button>
+                                    <button 
+                                        onClick={() => setIsTableExpanded(!isTableExpanded)}
+                                        className="p-2 text-slate-500 hover:text-brand-purple hover:bg-slate-100 rounded-lg transition-colors"
+                                        title={isTableExpanded ? "Exit Full Screen" : "Full Screen View"}
+                                    >
+                                        {isTableExpanded ? <MinimizeIcon /> : <MaximizeIcon />}
+                                    </button>
+                                </div>
                             </div>
                             
-                            <div className="overflow-x-auto max-h-[600px]">
-                                <table className="w-full text-left text-sm whitespace-nowrap">
+                            <div className={`overflow-x-auto ${isTableExpanded ? 'flex-1' : 'max-h-[600px]'}`}>
+                                <table id="breakdown-table" className="w-full text-left text-sm whitespace-nowrap">
                                     <thead className="sticky top-0 z-20 bg-slate-50 shadow-md">
                                         <tr className="text-slate-500 border-b border-slate-200">
                                             <th className="px-6 py-4 font-bold w-16 bg-slate-50 sticky left-0 z-20">#</th>
@@ -698,15 +842,22 @@
                                         {topProducts.map((item, idx) => (
                                             <tr key={idx} className="hover:bg-indigo-50/30 transition-colors group">
                                                 <td className="px-6 py-3 font-mono text-slate-400 sticky left-0 bg-white group-hover:bg-indigo-50/30 transition-colors z-10 border-r border-slate-100">{idx + 1}</td>
-                                                <td className="px-6 py-3 font-medium text-slate-800 sticky left-16 bg-white group-hover:bg-indigo-50/30 transition-colors z-10 shadow-[4px_0_12px_-4px_rgba(0,0,0,0.05)]">{item.name}</td>
+                                                <td 
+                                                    className="px-6 py-3 font-medium text-slate-800 sticky left-16 bg-white group-hover:bg-indigo-50/30 transition-colors z-10 shadow-[4px_0_12px_-4px_rgba(0,0,0,0.05)] cursor-pointer hover:text-brand-purple hover:underline"
+                                                    onClick={() => setActiveProduct(item)}
+                                                    title="Click to view live product stats"
+                                                >
+                                                    {item.name}
+                                                </td>
                                                 <td className="px-6 py-3 text-slate-500">{item.brand}</td>
                                                 {/* City Data Cell Removed */}
                                                 
                                                 {(viewMode === 'monthly' ? analysis.sortedMonthKeys : analysis.sortedQuarterKeys).map(k => {
-                                                    const d = (viewMode === 'monthly' ? item.months : item.quarters)[k] || { sales: 0, qty: 0 };
+                                                    const d = (viewMode === 'monthly' ? item.months : item.quarters)[k] || { sales: 0, qty: 0, priceSum: 0, priceCount: 0 };
                                                     let val = '-';
                                                     if (trendMetric === 'sales') val = d.sales > 0 ? formatCurrency(d.sales) : '-';
-                                                    else val = d.qty > 0 ? formatCurrency(d.sales / d.qty, true) : '-'; // Pass true for AOV precision
+                                                    else if (trendMetric === 'aov') val = d.qty > 0 ? formatCurrency(d.sales / d.qty, true) : '-'; // SALES / QTY
+                                                    else if (trendMetric === 'price') val = d.priceCount > 0 ? formatCurrency(d.priceSum / d.priceCount, true) : '-'; // AVG(Item Price)
                                                     
                                                     return (
                                                         <td key={k} className="px-4 py-3 text-right font-mono text-slate-600 border-l border-slate-100 text-xs">
@@ -724,6 +875,82 @@
                                 </table>
                             </div>
                         </div>
+
+                        {/* PRODUCT DEEP DIVE SECTION (Inline) */}
+                        {activeProduct && activeProductMatrix && (
+                            <div 
+                                ref={detailSectionRef} 
+                                className={`transition-all duration-300 ${isDeepDiveExpanded ? 'fixed inset-0 z-[200] bg-white flex flex-col p-6' : 'glass-panel rounded-3xl overflow-hidden border border-purple-100 shadow-xl mt-8 animate-fade-in bg-white/90'}`}
+                            >
+                                <div className="px-6 py-6 border-b border-purple-100 bg-purple-50/50 flex justify-between items-start">
+                                    <div>
+                                        <div className="flex items-center gap-2 mb-2">
+                                            <PriceTagIcon className="text-purple-600" />
+                                            <h2 className="text-2xl font-bold text-slate-800">Product Deep Dive</h2>
+                                        </div>
+                                        <h3 className="text-lg font-medium text-slate-600 mb-1">{activeProduct.name}</h3>
+                                        <div className="flex gap-4 text-xs text-slate-500 font-mono mt-2">
+                                            <span className="bg-white px-2 py-1 rounded border border-purple-100 text-purple-700 font-bold">Sales: {formatCurrency(activeProduct.totalSales)}</span>
+                                            <span className="bg-white px-2 py-1 rounded border border-purple-100 text-purple-700 font-bold">Qty: {activeProduct.totalQty.toLocaleString()}</span>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <button 
+                                            onClick={() => setIsDeepDiveExpanded(!isDeepDiveExpanded)}
+                                            className="p-2 bg-white rounded-full text-slate-400 hover:text-purple-600 hover:bg-purple-50 transition-colors shadow-sm"
+                                            title={isDeepDiveExpanded ? "Exit Full Screen" : "Full Screen View"}
+                                        >
+                                            {isDeepDiveExpanded ? <MinimizeIcon /> : <MaximizeIcon />}
+                                        </button>
+                                        <button 
+                                            onClick={() => setActiveProduct(null)} 
+                                            className="p-2 bg-white rounded-full text-slate-400 hover:text-slate-800 hover:bg-slate-100 transition-colors shadow-sm"
+                                            title="Close Detail View"
+                                        >
+                                            <CloseIcon />
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div className={`overflow-x-auto ${isDeepDiveExpanded ? 'flex-1' : 'max-h-[500px]'}`}>
+                                    <table className="w-full text-left text-sm whitespace-nowrap">
+                                        <thead className="sticky top-0 bg-white z-10 shadow-sm">
+                                            <tr className="text-slate-500 border-b border-purple-100 font-bold">
+                                                <th className="px-6 py-4 bg-purple-50/30 sticky left-0 z-20 border-r border-purple-100 text-purple-900">City / Month</th>
+                                                {activeProductMatrix.months.map(m => (
+                                                    <th key={m} className="px-4 py-4 text-right min-w-[120px] bg-purple-50/10">
+                                                        <div className="text-slate-700">{formatMonthLabel(m)}</div>
+                                                        <div className="text-[10px] text-slate-400 font-normal mt-1 bg-slate-50 inline-block px-1.5 py-0.5 rounded">
+                                                            Std: {formatCurrency(activeProductMatrix.monthStandards[m], true)}
+                                                        </div>
+                                                    </th>
+                                                ))}
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-purple-50/50 bg-white">
+                                            {activeProductMatrix.cities.map(city => (
+                                                <tr key={city} className="hover:bg-purple-50/30 transition-colors">
+                                                    <td className="px-6 py-3 font-medium text-slate-700 sticky left-0 bg-white border-r border-slate-100 group-hover:bg-purple-50/30">{city}</td>
+                                                    {activeProductMatrix.months.map(m => {
+                                                        const cell = activeProductMatrix.data[city]?.[m];
+                                                        const isZero = !cell || cell.price === 0;
+                                                        return (
+                                                            <td key={m} className={`px-4 py-3 text-right font-mono border-l border-slate-50 text-xs ${cell?.isException ? 'bg-red-50 text-red-600 font-bold border-red-100' : isZero ? 'text-slate-300' : 'text-emerald-600'}`}>
+                                                                {isZero ? '-' : formatCurrency(cell.price, true)}
+                                                            </td>
+                                                        );
+                                                    })}
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                                <div className="bg-purple-50/30 px-6 py-3 text-[10px] text-slate-500 border-t border-purple-100 flex gap-6">
+                                    <div className="flex items-center gap-1.5"><span className="w-2 h-2 bg-emerald-500 rounded-full"></span> Matches Standard Price</div>
+                                    <div className="flex items-center gap-1.5"><span className="w-2 h-2 bg-red-500 rounded-full"></span> Price Exception (>2% deviation)</div>
+                                </div>
+                            </div>
+                        )}
 
                         <div className="text-center mt-12 mb-8 text-slate-500 text-xs font-bold uppercase tracking-widest">
                             Powered By The Huger Gains
