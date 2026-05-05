@@ -700,7 +700,7 @@
       Trade<span>Signal</span> <span style="color:var(--text-muted);font-size:14px;font-weight:600;font-family:var(--font-ui)">PRO</span>
     </div>
     <div class="header-right">
-      <div class="live-badge"><div class="live-dot"></div>LIVE DATA</div>
+      <div class="live-badge" id="liveBadge"><div class="live-dot" id="liveDot"></div><span id="liveText">CONNECTING…</span></div>
       <div class="market-time" id="mktTime">–</div>
       <div style="font-size:12px;color:var(--text-muted);font-weight:600;">NSE / BSE</div>
       <button onclick="openSetupModal()" title="API / PIN Settings" style="background:var(--bg);border:1px solid var(--border-hover);padding:6px 12px;border-radius:10px;font-size:12px;font-weight:700;color:var(--text-muted);cursor:pointer;transition:all 0.2s;" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--text-muted)'">⚙️ Settings</button>
@@ -1652,53 +1652,98 @@ function renderSignalLog() {
 }
 
 // ── LIVE UPSTOX API INTEGRATION ─────────────────────────────
+let apiConnected = false;
+
+function setApiStatus(connected, label) {
+  apiConnected = connected;
+  const badge  = document.getElementById('liveBadge');
+  const dot    = document.getElementById('liveDot');
+  const text   = document.getElementById('liveText');
+  if (!badge) return;
+  if (connected) {
+    badge.style.background  = 'var(--buy-light)';
+    badge.style.color       = 'var(--buy)';
+    dot.style.background    = 'var(--buy)';
+    dot.style.boxShadow     = '0 0 10px var(--buy)';
+    text.textContent        = label || 'LIVE DATA';
+  } else {
+    badge.style.background  = 'var(--sell-light)';
+    badge.style.color       = 'var(--sell)';
+    dot.style.background    = 'var(--sell)';
+    dot.style.boxShadow     = '0 0 10px var(--sell)';
+    text.textContent        = label || 'API OFFLINE';
+  }
+}
+
 async function fetchLiveQuote() {
   if (!currentSymbol) return;
+  const token = UPSTOX_TOKEN || sessionStorage.getItem('upstox_token') || '';
+  if (!token) {
+    setApiStatus(false, 'NO TOKEN');
+    return;
+  }
+
   try {
     const sym = symbols[currentSymbol];
     if (!sym || !sym.upstoxKey) return;
 
-    const res = await fetch(`https://api.upstox.com/v2/market-quote/quotes?instrument_key=${sym.upstoxKey}`, {
+    // FIX 1: URL-encode the instrument_key so '|' becomes '%7C' and spaces become '%20'
+    const encodedKey = encodeURIComponent(sym.upstoxKey);
+    const url = `https://api.upstox.com/v2/market-quote/quotes?instrument_key=${encodedKey}`;
+
+    const res = await fetch(url, {
       method: 'GET',
       headers: {
         'Accept': 'application/json',
-        'Authorization': `Bearer ${UPSTOX_TOKEN}`
+        'Authorization': `Bearer ${token}`
       }
     });
-    
+
+    if (!res.ok) {
+      const errText = await res.text().catch(() => '');
+      setApiStatus(false, `HTTP ${res.status}`);
+      console.error('Upstox API HTTP error:', res.status, errText);
+      showToastError(`❌ Upstox API error ${res.status} — check token or market hours`);
+      return;
+    }
+
     const data = await res.json();
-    
-    if (data && data.status === 'success' && data.data && data.data[sym.upstoxKey]) {
-      const quote = data.data[sym.upstoxKey];
-      
+
+    // FIX 2: Upstox returns data keyed with ':' colon (e.g. 'NSE_EQ:INE002A01018')
+    // but our upstoxKey uses '|' pipe. Try both separators.
+    const pipeKey  = sym.upstoxKey;                         // NSE_EQ|INE002A01018
+    const colonKey = sym.upstoxKey.replace('|', ':');       // NSE_EQ:INE002A01018
+
+    const quote = data?.data?.[colonKey] || data?.data?.[pipeKey];
+
+    if (data && data.status === 'success' && quote) {
+      setApiStatus(true, 'LIVE DATA');
       sym.price = quote.last_price;
       if (quote.ohlc) {
-        sym.open = quote.ohlc.open || sym.open;
-        sym.high = quote.ohlc.high || sym.high;
-        sym.low = quote.ohlc.low || sym.low;
+        sym.open = quote.ohlc.open  || sym.open;
+        sym.high = quote.ohlc.high  || sym.high;
+        sym.low  = quote.ohlc.low   || sym.low;
       }
-      
+
       document.getElementById('mainPrice').textContent = '₹' + sym.price.toFixed(2);
-      
-      const d = (sym.price - sym.open);
-      const dp = ((d / sym.open) * 100);
-      
+
+      const d  = sym.price - sym.open;
+      const dp = (d / sym.open) * 100;
+
       const chgEl = document.getElementById('mainChange');
       chgEl.textContent = `${d >= 0 ? '+' : ''}₹${d.toFixed(2)} (${d >= 0 ? '+' : ''}${dp.toFixed(2)}%)`;
-      chgEl.className = 'price-change ' + (d >= 0 ? 'up' : 'dn');
-      
+      chgEl.className   = 'price-change ' + (d >= 0 ? 'up' : 'dn');
+
       document.getElementById('statHigh').textContent = '₹' + sym.high.toFixed(2);
-      document.getElementById('statLow').textContent = '₹' + sym.low.toFixed(2);
+      document.getElementById('statLow').textContent  = '₹' + sym.low.toFixed(2);
       document.getElementById('statOpen').textContent = '₹' + sym.open.toFixed(2);
 
       if (mainChart) {
-        const closes = mainChart.data.datasets[0].data;
-        // BUG FIX: capture the last close BEFORE modifying the array
+        const closes   = mainChart.data.datasets[0].data;
         const prevClose = closes[closes.length - 1];
         closes.push(sym.price);
         closes.shift();
 
-        // Update OHLC history for candlestick plugin
         if (priceHistory.length > 0) {
           priceHistory.push({ t: priceHistory.length, o: prevClose, h: Math.max(prevClose, sym.price), l: Math.min(prevClose, sym.price), c: sym.price });
           priceHistory.shift();
@@ -1710,9 +1755,18 @@ async function fetchLiveQuote() {
         mainChart.update('none');
       }
       renderPortfolio();
+    } else {
+      // API returned success:false or empty data
+      setApiStatus(false, 'NO DATA');
+      console.warn('Upstox: no quote in response for', sym.upstoxKey, data);
     }
   } catch (err) {
-    console.error('Upstox API Fetch Error (Likely CORS restriction):', err);
+    setApiStatus(false, 'CORS / NET ERR');
+    console.error('Upstox fetch error:', err);
+    // Only show toast on first failure to avoid spam
+    if (apiConnected !== false) {
+      showToastError('⚠️ Cannot reach Upstox API. If running from file://, open via a local server (e.g. VS Code Live Server).');
+    }
   }
 }
 
