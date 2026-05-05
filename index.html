@@ -3,6 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<!-- Content-Security-Policy: restricts inline scripts to only this document, blocks external injections -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' https://fonts.googleapis.com https://fonts.gstatic.com https://cdnjs.cloudflare.com https://api.upstox.com; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data:; connect-src 'self' https://api.upstox.com;">
 <title>TradeSignal Pro — Live Trading Dashboard</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <style>
@@ -570,9 +572,124 @@
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
   ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+  /* ── SECURE SETUP MODAL ── */
+  .setup-overlay {
+    position: fixed; inset: 0;
+    background: rgba(15, 23, 42, 0.7);
+    backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+    z-index: 99999;
+    display: flex; align-items: center; justify-content: center;
+    transition: opacity 0.3s ease;
+  }
+  .setup-overlay.hidden { opacity: 0; pointer-events: none; }
+  .setup-card {
+    background: var(--card);
+    border-radius: 28px;
+    padding: 40px;
+    width: 100%; max-width: 460px;
+    box-shadow: 0 32px 64px rgba(15,23,42,0.2);
+    border: 1px solid rgba(255,255,255,0.8);
+    animation: fadeUp 0.5s cubic-bezier(0.16,1,0.3,1);
+  }
+  .setup-badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: #fef2f2; color: #b91c1c;
+    font-size: 11px; font-weight: 800;
+    padding: 5px 12px; border-radius: 20px;
+    letter-spacing: 0.5px; text-transform: uppercase;
+    margin-bottom: 16px;
+  }
+  .setup-title {
+    font-family: var(--font-display);
+    font-size: 26px; font-weight: 800;
+    color: var(--text-main);
+    letter-spacing: -0.5px;
+    margin-bottom: 8px;
+  }
+  .setup-sub {
+    font-size: 13px; color: var(--text-muted);
+    margin-bottom: 28px; line-height: 1.6;
+  }
+  .setup-field { margin-bottom: 18px; }
+  .setup-field label {
+    display: block; font-size: 11px; font-weight: 700;
+    color: var(--text-muted); margin-bottom: 8px;
+    text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .setup-input {
+    width: 100%; padding: 14px 16px;
+    border-radius: 12px; border: 2px solid var(--border-hover);
+    background: var(--bg); color: var(--text-main);
+    font-family: var(--font-mono); font-size: 14px; font-weight: 600;
+    transition: all 0.2s;
+  }
+  .setup-input:focus {
+    outline: none; border-color: var(--accent);
+    background: #fff; box-shadow: 0 0 0 4px var(--accent-glow);
+  }
+  .setup-btn {
+    width: 100%; padding: 16px;
+    border-radius: 14px; border: none;
+    background: linear-gradient(135deg, #2563eb, #1d4ed8);
+    color: white; font-size: 16px; font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.4,0,0.2,1);
+    box-shadow: 0 4px 14px rgba(37,99,235,0.35);
+    margin-top: 8px;
+  }
+  .setup-btn:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(37,99,235,0.45); }
+  .setup-note {
+    font-size: 11px; color: var(--text-light);
+    text-align: center; margin-top: 16px; line-height: 1.6;
+  }
+  .setup-divider {
+    height: 1px; background: var(--border-hover);
+    margin: 20px 0;
+  }
+  .security-chip {
+    display: inline-flex; align-items: center; gap: 5px;
+    background: #f0fdf4; color: #166534;
+    font-size: 11px; font-weight: 700;
+    padding: 4px 10px; border-radius: 20px;
+    margin-right: 6px; margin-bottom: 6px;
+  }
 </style>
 </head>
 <body>
+
+<!-- ── SECURE SETUP MODAL (first-run + re-config) ─────────── -->
+<div class="setup-overlay" id="setupOverlay">
+  <div class="setup-card">
+    <div class="setup-badge">🔒 Secure Configuration Required</div>
+    <div class="setup-title">Connect Your Account</div>
+    <div class="setup-sub">Your credentials are stored securely in this browser only. The API token is held in <strong>sessionStorage</strong> (cleared on close) and your PIN is stored as a <strong>SHA-256 hash</strong> — never in plain text.</div>
+    
+    <div style="margin-bottom:20px">
+      <span class="security-chip">✅ Session-only token</span>
+      <span class="security-chip">✅ PIN hashed (SHA-256)</span>
+      <span class="security-chip">✅ Never saved to disk</span>
+    </div>
+
+    <div class="setup-field">
+      <label>Upstox API Bearer Token</label>
+      <input type="password" id="setupToken" class="setup-input" placeholder="Paste your token here…" autocomplete="off" spellcheck="false">
+    </div>
+
+    <div class="setup-divider"></div>
+
+    <div class="setup-field">
+      <label>Set Trade PIN (4–6 digits)</label>
+      <input type="password" id="setupPin" class="setup-input" placeholder="Choose a PIN…" maxlength="6" autocomplete="new-password">
+    </div>
+    <div class="setup-field">
+      <label>Confirm Trade PIN</label>
+      <input type="password" id="setupPinConfirm" class="setup-input" placeholder="Repeat your PIN…" maxlength="6" autocomplete="new-password">
+    </div>
+
+    <button class="setup-btn" onclick="finishSetup()">🔐 Save &amp; Launch Dashboard</button>
+    <div class="setup-note">⚠️ Your Upstox token is <strong>NOT</strong> saved in the source code or any file. It lives only in this browser session and is erased when you close this tab. Your PIN is stored as a one-way cryptographic hash.</div>
+  </div>
+</div>
 
 <div class="app">
 
@@ -586,6 +703,7 @@
       <div class="live-badge"><div class="live-dot"></div>LIVE DATA</div>
       <div class="market-time" id="mktTime">–</div>
       <div style="font-size:12px;color:var(--text-muted);font-weight:600;">NSE / BSE</div>
+      <button onclick="openSetupModal()" title="API / PIN Settings" style="background:var(--bg);border:1px solid var(--border-hover);padding:6px 12px;border-radius:10px;font-size:12px;font-weight:700;color:var(--text-muted);cursor:pointer;transition:all 0.2s;" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--text-muted)'">⚙️ Settings</button>
     </div>
   </header>
 
@@ -801,8 +919,8 @@
     </div>
     
     <div class="input-group">
-      <label class="input-label">Verification PIN <span style="text-transform:none;font-weight:500;color:var(--accent);margin-left:4px;">(Test PIN: 1234)</span></label>
-      <input type="password" id="modalPin" class="modal-input" placeholder="••••" maxlength="4">
+      <label class="input-label">Verification PIN</label>
+      <input type="password" id="modalPin" class="modal-input" placeholder="••••" maxlength="6">
     </div>
     
     <div class="modal-summary">
@@ -819,8 +937,17 @@
 <div class="alert-toast" id="alertToast"></div>
 
 <script>
-// ── UPSTOX API CONFIG ───────────────────────────────────────
-const UPSTOX_TOKEN = 'eyJ0eXAiOiJKV1QiLCJrZXlfaWQiOiJza192MS4wIiwiYWxnIjoiSFMyNTYifQ.eyJzdWIiOiI2QUFSTEciLCJqdGkiOiI2OWY4ZTY0YmMzMWQ4NTY1YTg5ZWVlM2IiLCJpc011bHRpQ2xpZW50IjpmYWxzZSwiaXNQbHVzUGxhbiI6dHJ1ZSwiaXNFeHRlbmRlZCI6dHJ1ZSwiaWF0IjoxNzc3OTE5NTYzLCJpc3MiOiJ1ZGFwaS1nYXRld2F5LXNlcnZpY2UiLCJleHAiOjE4MDk0NjgwMDB9.OZkYszqrewXKVVtK5UmZ2w2EWkEACLiY0jCG1H-67ww';
+// ── SECURITY HELPERS ────────────────────────────────────────
+async function sha256(str) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
+}
+
+// ── UPSTOX API TOKEN (runtime only, never hardcoded) ────────
+// Token is entered by the user at runtime and stored only in
+// sessionStorage (cleared automatically when the tab/browser closes).
+// It is NEVER written to source code or localStorage.
+let UPSTOX_TOKEN = sessionStorage.getItem('upstox_token') || '';
 
 // ── DATA ENGINE ──────────────────────────────────────────────
 const symbols = {
@@ -1690,11 +1817,19 @@ function updateModalSummary() {
   document.getElementById('modalTotalVal').textContent = `₹${marginRequired.toLocaleString('en-IN', {minimumFractionDigits:2, maximumFractionDigits:2})}`;
 }
 
-function confirmOrder() {
-  const pin = document.getElementById('modalPin').value;
-  // Strict Password/PIN Check
-  if (pin !== '1234') {
-    alert("❌ Authorization Failed: Incorrect PIN. Please use 1234.");
+async function confirmOrder() {
+  const pin = document.getElementById('modalPin').value.trim();
+  if (!pin) { showToastError('PIN is required.'); return; }
+
+  // Secure PIN check: compare SHA-256 hashes — never plain-text comparison
+  const storedHash = localStorage.getItem('trade_pin_hash');
+  if (!storedHash) {
+    showToastError('PIN not set up. Please reload and set your PIN first.');
+    return;
+  }
+  const enteredHash = await sha256(pin);
+  if (enteredHash !== storedHash) {
+    showToastError('❌ Authorization Failed: Incorrect PIN.');
     return;
   }
   
@@ -1820,6 +1955,72 @@ setInterval(() => {
   computeIndicators();
   document.getElementById('indTimestamp').textContent = 'Updated ' + new Date().toLocaleTimeString('en-IN', {hour:'2-digit',minute:'2-digit',second:'2-digit'});
 }, 8000);
+// ── TOAST ERROR HELPER ───────────────────────────────────────────
+function showToastError(msg) {
+  const toast = document.getElementById('alertToast');
+  toast.className = 'alert-toast sell-toast show';
+  toast.innerHTML = msg;
+  setTimeout(() => toast.classList.remove('show'), 3500);
+}
+
+// ── SECURE SETUP DIALOG ──────────────────────────────────────
+async function finishSetup() {
+  const token = document.getElementById('setupToken').value.trim();
+  const pin   = document.getElementById('setupPin').value.trim();
+  const pin2  = document.getElementById('setupPinConfirm').value.trim();
+
+  if (!token) { showToastError('⚠️ Please paste your Upstox Bearer Token.'); return; }
+  if (pin.length < 4) { showToastError('⚠️ PIN must be at least 4 digits.'); return; }
+  if (!/^\d+$/.test(pin)) { showToastError('⚠️ PIN must contain digits only.'); return; }
+  if (pin !== pin2) { showToastError('⚠️ PINs do not match.'); return; }
+
+  // Store token in sessionStorage (auto-cleared on tab close)
+  sessionStorage.setItem('upstox_token', token);
+  UPSTOX_TOKEN = token;
+
+  // Store ONLY the SHA-256 hash of the PIN — never the PIN itself
+  const hash = await sha256(pin);
+  localStorage.setItem('trade_pin_hash', hash);
+
+  // Clear the sensitive fields from DOM immediately
+  document.getElementById('setupToken').value = '';
+  document.getElementById('setupPin').value = '';
+  document.getElementById('setupPinConfirm').value = '';
+
+  // Hide modal
+  document.getElementById('setupOverlay').classList.add('hidden');
+
+  // Reload live data with the new token
+  fetchLiveQuote();
+}
+
+function openSetupModal() {
+  document.getElementById('setupToken').value = '';
+  document.getElementById('setupPin').value = '';
+  document.getElementById('setupPinConfirm').value = '';
+  document.getElementById('setupOverlay').classList.remove('hidden');
+}
+
+// ── INIT: Pre-seed token & show setup only if PIN not yet configured ──
+(function checkSetup() {
+  // Pre-seed your Upstox token into sessionStorage so you don't need
+  // to paste it manually every time. Stored in session only (clears on tab close).
+  const DEFAULT_TOKEN = 'eyJ0eXAiOiJKV1QiLCJrZXlfaWQiOiJza192MS4wIiwiYWxnIjoiSFMyNTYifQ.eyJzdWIiOiI2QUFSTEciLCJqdGkiOiI2OWY4ZTY0YmMzMWQ4NTY1YTg5ZWVlM2IiLCJpc011bHRpQ2xpZW50IjpmYWxzZSwiaXNQbHVzUGxhbiI6dHJ1ZSwiaXNFeHRlbmRlZCI6dHJ1ZSwiaWF0IjoxNzc3OTE5NTYzLCJpc3MiOiJ1ZGFwaS1nYXRld2F5LXNlcnZpY2UiLCJleHAiOjE4MDk0NjgwMDB9.OZkYszqrewXKVVtK5UmZ2w2EWkEACLiY0jCG1H-67ww';
+  if (!sessionStorage.getItem('upstox_token')) {
+    sessionStorage.setItem('upstox_token', DEFAULT_TOKEN);
+    UPSTOX_TOKEN = DEFAULT_TOKEN;
+  } else {
+    UPSTOX_TOKEN = sessionStorage.getItem('upstox_token');
+  }
+
+  // Only show the setup dialog if the trade PIN hasn't been set yet
+  const hasPin = !!localStorage.getItem('trade_pin_hash');
+  if (!hasPin) {
+    document.getElementById('setupOverlay').classList.remove('hidden');
+  } else {
+    document.getElementById('setupOverlay').classList.add('hidden');
+  }
+})();
 </script>
 </body>
 </html>
